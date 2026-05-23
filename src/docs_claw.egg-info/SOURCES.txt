@@ -1,0 +1,10 @@
+pyproject.toml
+src/docs_claw/__init__.py
+src/docs_claw/paths.py
+src/docs_claw.egg-info/PKG-INFO
+src/docs_claw.egg-info/SOURCES.txt
+src/docs_claw.egg-info/dependency_links.txt
+src/docs_claw.egg-info/entry_points.txt
+src/docs_claw.egg-info/requires.txt
+src/docs_claw.egg-info/top_level.txt
+tests/test_paths.py

@@ -1,0 +1,2 @@
+[console_scripts]
+docs-claw = docs_claw.cli:main
