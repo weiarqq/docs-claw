@@ -5,6 +5,7 @@ from pathlib import Path
 
 from docs_claw.converter import convert_source
 from docs_claw.crawler import crawl_source
+from docs_claw.opencode import init_opencode
 from docs_claw.paths import repo_root
 from docs_claw.registry import add_source, list_sources, load_source
 from docs_claw.search import search_source
@@ -30,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=10)
 
+    init = subparsers.add_parser("init-opencode", help="Install the OpenCode skill")
+    init.add_argument("--home", type=Path, default=None, help="Home directory to install into")
+    init.add_argument("--kb-root", type=Path, default=None, help="Shared docs knowledge-base root")
+    init.add_argument("--force", action="store_true", default=True, help="Overwrite existing skill file")
+    init.add_argument("--no-force", action="store_false", dest="force", help="Do not overwrite existing skill file")
+
     subparsers.add_parser("status", help="List registered sources")
     return parser
 
@@ -51,6 +58,15 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         for source in sources:
             print(f"{source.id}\t{source.type}\t{source.url}\tupdated={source.updated_at}")
+        return 0
+
+    if args.command == "init-opencode":
+        result = init_opencode(home=args.home, kb_root=args.kb_root, force=args.force)
+        action = "Installed" if result.skill_installed else "Kept existing"
+        print(f"{action} OpenCode skill: {result.skill_path}")
+        print(f"Knowledge-base root: {result.kb_root}")
+        print("Restart OpenCode so it reloads skills.")
+        print("Example: docs-claw --root ~/docs-claw-kb add ryzenai https://ryzenai.docs.amd.com/en/latest/index.html --type sphinx")
         return 0
 
     if args.command == "search":

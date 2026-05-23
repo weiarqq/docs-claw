@@ -25,6 +25,9 @@ docs-claw = "docs_claw.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+docs_claw = ["skills/official-docs/SKILL.md"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

@@ -30,3 +30,16 @@ title: Quantization Guide
     output = capsys.readouterr().out
     assert "Quantization Guide" in output
     assert "https://example.com/quant.html" in output
+
+
+def test_cli_init_opencode_installs_skill(tmp_path: Path, capsys):
+    home = tmp_path / "home"
+    kb_root = tmp_path / "kb"
+
+    assert main(["init-opencode", "--home", str(home), "--kb-root", str(kb_root)]) == 0
+
+    output = capsys.readouterr().out
+    assert "Installed OpenCode skill" in output
+    assert "Restart OpenCode" in output
+    assert (home / ".config" / "opencode" / "skills" / "official-docs" / "SKILL.md").exists()
+    assert kb_root.exists()
