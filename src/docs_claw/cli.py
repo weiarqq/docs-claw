@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from docs_claw.converter import convert_source
-from docs_claw.crawler import crawl_source
+from docs_claw.crawler import FetchError, crawl_source
 from docs_claw.opencode import init_opencode
 from docs_claw.paths import repo_root
 from docs_claw.registry import add_source, list_sources, load_source
@@ -25,6 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ["crawl", "convert", "build-wiki", "update"]:
         command = subparsers.add_parser(name)
         command.add_argument("source_id")
+        if name in {"crawl", "update"}:
+            command.add_argument(
+                "--ignore-proxy",
+                action="store_true",
+                help="Ignore HTTP_PROXY, HTTPS_PROXY, and ALL_PROXY environment variables",
+            )
 
     search = subparsers.add_parser("search", help="Search generated docs")
     search.add_argument("source_id")
@@ -81,8 +87,8 @@ def main(argv: list[str] | None = None) -> int:
 
     source = load_source(root, args.source_id)
     if args.command == "crawl":
-        result = crawl_source(root, source)
-        print(f"Crawled {result.pages_crawled} pages")
+        result = crawl_source(root, source, ignore_proxy=args.ignore_proxy)
+        print(f"Crawled {result.pages_crawled} pages, failed {result.pages_failed} pages")
         return 0
     if args.command == "convert":
         result = convert_source(root, source)
@@ -93,12 +99,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Indexed {result.pages_indexed} pages, wrote {result.topics_written} topics")
         return 0
     if args.command == "update":
-        crawl = crawl_source(root, source)
+        try:
+            crawl = crawl_source(root, source, ignore_proxy=args.ignore_proxy)
+        except FetchError as error:
+            _print_fetch_error(error)
+            return 1
         convert = convert_source(root, source)
         wiki = build_wiki(root, source)
         print(
             f"Updated {source.id}: crawled {crawl.pages_crawled}, "
-            f"converted {convert.pages_converted}, indexed {wiki.pages_indexed}"
+            f"failed {crawl.pages_failed}, converted {convert.pages_converted}, "
+            f"indexed {wiki.pages_indexed}"
         )
         return 0
     parser.error(f"unknown command: {args.command}")
@@ -107,3 +118,17 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def _print_fetch_error(error: FetchError) -> None:
+    print(f"Failed to fetch {error.url}")
+    print("")
+    print("Reason:")
+    print(error)
+    print("")
+    print("If this happens while using a proxy, try:")
+    print("  docs-claw --root <kb-root> update <source-id> --ignore-proxy")
+    print("")
+    print("Also check:")
+    print("  env | grep -i proxy")
+    print(f"  curl -I {error.url}")

@@ -69,6 +69,41 @@ docs-claw --root ~/docs-claw-kb search ryzenai "quantization tool usage"
 
 Search results include local Markdown paths and official source URLs when available.
 
+## Troubleshooting
+
+### Broken Links In Official Docs
+
+Official documentation sites sometimes contain stale links. For example, a page may link to `llm_flow.html` even though the server now returns `404 Not Found`.
+
+`docs-claw` records failed pages in the crawl manifest and continues crawling other pages:
+
+```text
+~/docs-claw-kb/raw/<source-id>/manifest.json
+```
+
+The manifest contains an `errors` section with the failed URL, HTTP status, and referrer page that linked to it.
+
+### SSL Or Proxy Errors
+
+If crawling fails with an SSL EOF, proxy, or connection error, first check whether proxy environment variables are active:
+
+```bash
+env | grep -i proxy
+```
+
+Try bypassing proxy environment variables:
+
+```bash
+docs-claw --root ~/docs-claw-kb update ryzenai --ignore-proxy
+```
+
+You can also compare with `curl`:
+
+```bash
+curl -I https://ryzenai.docs.amd.com/en/latest/index.html
+HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= curl -I https://ryzenai.docs.amd.com/en/latest/index.html
+```
+
 ## OpenCode Skill
 
 The repository includes `skills/official-docs/SKILL.md`. Use it when a programming task depends on official docs for an SDK, package, tool, command, or API.
