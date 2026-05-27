@@ -55,11 +55,30 @@ This creates `sources/ryzenai/source.yml` with domain and path restrictions so t
 docs-claw --root ~/docs-claw-kb update ryzenai
 ```
 
-`update` runs crawl, HTML-to-Markdown conversion, and wiki generation. Generated artifacts are written to:
+To update the source and build the multi-way tree wiki in one command:
+
+```bash
+docs-claw --root ~/docs-claw-kb update ryzenai --tree-name "Ryzen AI"
+```
+
+Tree navigation limits are configurable:
+
+```bash
+docs-claw --root ~/docs-claw-kb update ryzenai --tree-name "Ryzen AI" --max-view-nodes 100 --max-root-nodes 500
+```
+
+You can also provide the root description:
+
+```bash
+docs-claw --root ~/docs-claw-kb update ryzenai --tree-name "Ryzen AI" --tree-description "AMD Ryzen AI software, tools, optimization, and deployment docs."
+```
+
+`update` runs crawl, HTML-to-Markdown conversion, and wiki generation. With `--tree-name`, it also writes the tree wiki. Generated artifacts are written to:
 
 - `raw/<source-id>/`: raw HTML and crawl manifest
 - `docs/<source-id>/pages/`: converted Markdown pages with `source_url` frontmatter
 - `wiki/<source-id>/`: index, overview, topics, and log
+- `wiki/<source-id>/tree.json`: multi-way tree wiki when `--tree-name` is used
 
 ## Search
 
@@ -68,6 +87,84 @@ docs-claw --root ~/docs-claw-kb search ryzenai "quantization tool usage"
 ```
 
 Search results include local Markdown paths and official source URLs when available.
+
+## Tree Wiki
+
+`build-wiki` creates a deterministic index and topic catalog. To build the newer multi-way tree wiki structure, run:
+
+```bash
+docs-claw --root ~/docs-claw-kb build-tree ryzenai --name "Ryzen AI"
+```
+
+If you want a single command after source registration, use:
+
+```bash
+docs-claw --root ~/docs-claw-kb update ryzenai --tree-name "Ryzen AI"
+```
+
+You can provide the root description yourself:
+
+```bash
+docs-claw --root ~/docs-claw-kb build-tree ryzenai --name "Ryzen AI" --description "AMD Ryzen AI software, tools, optimization, and deployment docs."
+```
+
+If `--description` is omitted, `docs-claw` generates a short deterministic description from the source pages. Descriptions are kept short for agent context use.
+
+Tree wiki outputs are written to:
+
+```text
+~/docs-claw-kb/wiki/ryzenai/tree.json
+~/docs-claw-kb/wiki/ryzenai/tree.md
+~/docs-claw-kb/wiki/ryzenai/nodes/*.md
+```
+
+The root node uses the user-provided knowledge-base name. Non-leaf nodes include `name` and `description`. Leaf references point back to original converted Markdown locations using `path`, `line`, and `limit`, plus the official `source_url`.
+
+The builder also performs deterministic maintenance:
+
+- Duplicate references are grouped; the highest-quality reference is marked `is_default=true`, and other matches are kept as `candidates`.
+- Nodes with more than 10 default references are split into broader child nodes instead of piling up references.
+- Duplicate sibling nodes are merged by normalized name.
+
+### Multi-Turn Tree Navigation
+
+Agents should not load the full `tree.json` into context by default. Use the navigation protocol instead:
+
+```bash
+docs-claw --root ~/docs-claw-kb tree-view ryzenai --limit 100
+```
+
+This renders a bounded view generated from `tree.json`:
+
+```text
+Ryzen AI - Installation (installation): Installation docs.
+  - Linux (linux): Linux install. [leaf]
+Ryzen AI - Quantization (quantization): Quantization docs. [leaf]
+```
+
+If the selected node is not a leaf, continue selecting:
+
+```bash
+docs-claw --root ~/docs-claw-kb tree-view ryzenai --root-node installation --limit 100
+```
+
+Only resolve a leaf node:
+
+```bash
+docs-claw --root ~/docs-claw-kb tree-resolve ryzenai linux
+```
+
+If a view has more nodes than the limit, use pagination:
+
+```bash
+docs-claw --root ~/docs-claw-kb tree-view ryzenai --offset 100 --limit 100
+```
+
+Inspect root split status:
+
+```bash
+docs-claw --root ~/docs-claw-kb tree-stats ryzenai
+```
 
 ## Troubleshooting
 
@@ -175,11 +272,12 @@ If you prefer project-local registration instead of copying the skill globally, 
 
 The skill workflow is intentionally simple:
 
-1. Check available sources with `docs-claw status` or `wiki/*/index.md`.
-2. Search with `docs-claw search <source-id> "<query>"`.
-3. Read matching Markdown files under `wiki/` and `docs/`.
-4. Answer with official `source_url` citations.
-5. Run `docs-claw update <source-id>` when local docs are missing or stale.
+1. Check available sources with `docs-claw status` or `wiki/*/tree.json`.
+2. Prefer `wiki/<source-id>/tree.json` to locate relevant nodes and leaf references.
+3. Read referenced Markdown passages from `docs/<source-id>/pages/*.md` using `path`, `line`, and `limit`.
+4. Search with `docs-claw search <source-id> "<query>"` when tree navigation is not enough.
+5. Answer with official `source_url` citations.
+6. Run `docs-claw update <source-id> --tree-name "<Knowledge Base Name>"` when local docs are missing or stale.
 
 When using a shared knowledge-base directory, ask OpenCode to include the same `--root` value in commands:
 

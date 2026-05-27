@@ -17,23 +17,30 @@ Use the local `docs-claw` knowledge base before answering implementation questio
 
 ## Workflow
 
-1. Inspect available sources with `docs-claw status` or by checking `wiki/*/index.md`.
-2. Search the likely source with `docs-claw search <source-id> "<query>"`.
-3. Read the top matching `wiki/` topic/index pages and generated `docs/<source-id>/pages/*.md` pages.
-4. Answer using the local documentation. Include `source_url` values or source URLs from the relevant pages.
-5. If the docs are missing or stale, run or suggest `docs-claw update <source-id>` before relying on old content.
+1. Inspect available sources with `docs-claw status`.
+2. Use `docs-claw tree-view <source-id> --limit 100` to show a bounded tree view generated from `tree.json`.
+3. Choose the best node id for the user's question. If the selected node is not a leaf, run `docs-claw tree-view <source-id> --root-node <node-id> --limit 100` and choose again.
+4. Do not read source passages until a leaf node is selected.
+5. Resolve the final leaf with `docs-claw tree-resolve <source-id> <node-id>`.
+6. Answer using the returned text and cite `source_url`.
+7. If the docs are missing or stale, run or suggest `docs-claw update <source-id> --tree-name "<Knowledge Base Name>"` before relying on old content.
 
 ## Query Pattern
 
 ```bash
 docs-claw status
-docs-claw search ryzenai "quantization tool usage"
+docs-claw --root ~/docs-claw-kb update ryzenai --tree-name "Ryzen AI"
+docs-claw --root ~/docs-claw-kb tree-view ryzenai --limit 100
+docs-claw --root ~/docs-claw-kb tree-view ryzenai --root-node quantization --limit 100
+docs-claw --root ~/docs-claw-kb tree-resolve ryzenai quantization
 ```
 
-Then read the matching Markdown files and cite their `source_url` fields in the answer.
+Use `docs-claw search ryzenai "query"` only when tree navigation is insufficient.
 
 ## Common Mistakes
 
 - Do not answer from memory when a local official documentation source exists.
 - Do not crawl arbitrary websites from the skill. Use `docs-claw add` and `docs-claw update` for source lifecycle.
 - Do not cite only local file paths. Include official source URLs when present.
+- Do not load the full `tree.json` into context by default. Use `tree-view` and `tree-resolve`.
+- Do not resolve a non-leaf node. Continue `tree-view` selection until a leaf is selected.

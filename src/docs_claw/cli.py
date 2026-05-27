@@ -9,6 +9,8 @@ from docs_claw.opencode import init_opencode
 from docs_claw.paths import repo_root
 from docs_claw.registry import add_source, list_sources, load_source
 from docs_claw.search import search_source
+from docs_claw.tree_wiki import build_tree_wiki
+from docs_claw.tree_navigation import TreeResolveError, render_tree_view, resolve_leaf_text, tree_stats
 from docs_claw.wiki import build_wiki
 
 
@@ -31,6 +33,31 @@ def build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Ignore HTTP_PROXY, HTTPS_PROXY, and ALL_PROXY environment variables",
             )
+        if name == "update":
+            command.add_argument("--tree-name", default=None, help="Also build tree wiki with this root name")
+            command.add_argument("--tree-description", default=None, help="Root description for --tree-name")
+            command.add_argument("--max-view-nodes", type=int, default=100, help="Default tree-view page size")
+            command.add_argument("--max-root-nodes", type=int, default=500, help="Maximum nodes per independent root")
+
+    build_tree = subparsers.add_parser("build-tree", help="Build a multi-way tree wiki")
+    build_tree.add_argument("source_id")
+    build_tree.add_argument("--name", required=True, help="Root knowledge-base name")
+    build_tree.add_argument("--description", default=None, help="Root description, <= 100 characters recommended")
+    build_tree.add_argument("--max-view-nodes", type=int, default=100, help="Default tree-view page size")
+    build_tree.add_argument("--max-root-nodes", type=int, default=500, help="Maximum nodes per independent root")
+
+    tree_view = subparsers.add_parser("tree-view", help="Render a bounded tree view for multi-turn selection")
+    tree_view.add_argument("source_id")
+    tree_view.add_argument("--root-node", default="root", help="Node id to render from")
+    tree_view.add_argument("--limit", type=int, default=None, help="Maximum selectable nodes to show")
+    tree_view.add_argument("--offset", type=int, default=0, help="Selectable node offset")
+
+    tree_resolve = subparsers.add_parser("tree-resolve", help="Resolve a selected leaf node to source text")
+    tree_resolve.add_argument("source_id")
+    tree_resolve.add_argument("node_id")
+
+    tree_stats_parser = subparsers.add_parser("tree-stats", help="Show tree root and node counts")
+    tree_stats_parser.add_argument("source_id")
 
     search = subparsers.add_parser("search", help="Search generated docs")
     search.add_argument("source_id")
@@ -85,6 +112,22 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {result.snippet}")
         return 0
 
+    if args.command == "tree-view":
+        print(render_tree_view(root, args.source_id, root_node_id=args.root_node, limit=args.limit, offset=args.offset), end="")
+        return 0
+
+    if args.command == "tree-resolve":
+        try:
+            print(resolve_leaf_text(root, args.source_id, args.node_id), end="")
+        except TreeResolveError as error:
+            print(str(error))
+            return 1
+        return 0
+
+    if args.command == "tree-stats":
+        print(tree_stats(root, args.source_id), end="")
+        return 0
+
     source = load_source(root, args.source_id)
     if args.command == "crawl":
         result = crawl_source(root, source, ignore_proxy=args.ignore_proxy)
@@ -98,6 +141,20 @@ def main(argv: list[str] | None = None) -> int:
         result = build_wiki(root, source)
         print(f"Indexed {result.pages_indexed} pages, wrote {result.topics_written} topics")
         return 0
+    if args.command == "build-tree":
+        result = build_tree_wiki(
+            root,
+            source,
+            name=args.name,
+            description=args.description,
+            max_view_nodes=args.max_view_nodes,
+            max_root_nodes=args.max_root_nodes,
+        )
+        print(
+            f"Built tree wiki: {result.tree_path.relative_to(root)} "
+            f"({result.nodes_written} nodes, {result.references_indexed} references)"
+        )
+        return 0
     if args.command == "update":
         try:
             crawl = crawl_source(root, source, ignore_proxy=args.ignore_proxy)
@@ -106,10 +163,21 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         convert = convert_source(root, source)
         wiki = build_wiki(root, source)
+        tree = None
+        if args.tree_name:
+            tree = build_tree_wiki(
+                root,
+                source,
+                name=args.tree_name,
+                description=args.tree_description,
+                max_view_nodes=args.max_view_nodes,
+                max_root_nodes=args.max_root_nodes,
+            )
+        tree_summary = f", tree nodes {tree.nodes_written}" if tree else ""
         print(
             f"Updated {source.id}: crawled {crawl.pages_crawled}, "
             f"failed {crawl.pages_failed}, converted {convert.pages_converted}, "
-            f"indexed {wiki.pages_indexed}"
+            f"indexed {wiki.pages_indexed}{tree_summary}"
         )
         return 0
     parser.error(f"unknown command: {args.command}")
